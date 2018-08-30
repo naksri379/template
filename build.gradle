@@ -1,0 +1,197 @@
+import java.text.SimpleDateFormat
+
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath("org.springframework.boot:spring-boot-gradle-plugin:2.0.1.RELEASE")
+        classpath 'de.aaschmid:gradle-cpd-plugin:1.0'
+    }
+}
+
+plugins {
+    id "com.bmuschko.docker-remote-api" version "3.2.8"
+    id "com.patdouble.awsecr" version "0.4.0"
+}
+
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'idea'
+apply plugin: 'org.springframework.boot'
+apply plugin: 'io.spring.dependency-management'
+apply plugin: 'checkstyle'
+apply plugin: 'jacoco'
+apply plugin: 'com.bmuschko.docker-remote-api'
+apply plugin: 'findbugs'
+apply plugin: 'pmd'
+apply plugin: 'jdepend'
+apply plugin: 'cpd'
+
+archivesBaseName = 'nack'
+String dockerTag = System.env.BUILD_NUMBER ? buildTime() + '-' + gitSha() + '-' + System.env.BUILD_NUMBER : buildTime() + '-' + gitSha()
+
+def gitSha() {
+    return 'git rev-parse --short HEAD'.execute().text.trim()
+}
+
+def buildTime() {
+    def df = new SimpleDateFormat("yyyyMMdd'T'HHmm")
+    df.setTimeZone(TimeZone.getTimeZone("GMT+7:00"))
+    return df.format(new Date())
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url 'https://repo.spring.io/libs-release'
+    }
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+dependencies {
+    // spring
+    compile('org.springframework.boot:spring-boot-starter-web')
+    compile('org.springframework.boot:spring-boot-starter-actuator')
+
+    // util
+    compile('org.projectlombok:lombok:1.16.16')
+    compile('com.google.guava:guava:23.0')
+    compile('com.splunk.logging:splunk-library-javalogging:1.5.3')
+
+    // test
+    testCompile('org.springframework.boot:spring-boot-starter-test')
+}
+
+sourceSets {
+    // So that we can place source code in 'src/integrationTest/java':
+    integrationTest {
+        java {
+
+            // So that we can compile against the business classes (GreeterService, ...):
+            compileClasspath += main.output
+            // So that we can compile against the libs used by the business classes:
+            compileClasspath += main.compileClasspath
+
+            // So that we can compile against the unit test classes (custom utilities fx):
+            compileClasspath += test.output
+            // So that we can compile against the libs used by the unit test classes (JUnit, Spring test support, ...):
+            compileClasspath += test.compileClasspath
+
+            // So that test- and business classes can be used at runtime:
+            runtimeClasspath += test.runtimeClasspath
+        }
+    }
+}
+
+task integrationTest(type: Test) {
+
+    // So that Gradle knows where the integration test classes are:
+    setTestClassesDirs(sourceSets.integrationTest.getOutput())
+    // So that Gradle knows which runtime class path to use:
+    classpath = sourceSets.integrationTest.runtimeClasspath
+
+}
+
+import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
+import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
+
+String dockerRepo = '260232287609.dkr.ecr.ap-southeast-1.amazonaws.com/template-service'
+
+docker {
+    registryCredentials {
+        url = "https://${dockerRepo}"
+    }
+}
+
+task copyJavaAgent(type: Copy) {
+    from 'java-agent.zip'
+    into buildDir
+}
+
+task copyDockerfile(type: Copy) {
+    from 'Dockerfile'
+    into buildDir
+}
+
+task buildImage(type: DockerBuildImage) {
+    inputDir = buildDir
+    tag = "${dockerRepo}:${dockerTag}"
+}
+
+task pushImage(type: DockerPushImage) {
+    imageName = "${dockerRepo}:${dockerTag}"
+}
+
+task buildArtifact(type: Zip) {
+    String libsDir = "${buildDir}/libs"
+    File dockerFile = new File("Dockerrun.aws.json")
+
+    doFirst {
+        ant.replace(file: dockerFile.getName(), token: "<tag>", value: "${dockerTag}")
+        ant.replace(file: dockerFile.getName(), token: "<repository>", value: "${dockerRepo}")
+    }
+
+    from dockerFile
+    from (".ebextensions"){
+        into (".ebextensions")
+    }
+
+    destinationDir = file(libsDir)
+    archiveName = "${archivesBaseName}-${dockerTag}.zip"
+
+    doLast {
+        dockerFile.renameTo(new File(libsDir, dockerFile.getName()))
+    }
+}
+
+buildImage.dependsOn copyJavaAgent
+buildImage.dependsOn copyDockerfile
+pushImage.dependsOn buildImage
+buildArtifact.dependsOn pushImage
+
+checkstyle {
+    toolVersion "7.6.1"
+}
+tasks.withType(Checkstyle) {
+    reports {
+        xml.enabled false
+        html.enabled true
+    }
+}
+
+tasks.withType(FindBugs) {
+    reports {
+        xml.enabled false
+        html.enabled true
+    }
+}
+
+findbugs {
+    // Excludes integrationTest and test, awaits for SEACAPI-361 to be completed
+    sourceSets = [sourceSets.main]
+    includeFilter = file('config/findbugs/findbugs-filter.xml')
+}
+
+cpd {
+    encoding 'UTF-8'
+}
+
+// Excludes integrationTest and test, awaits for SEACAPI-361 to be completed
+cpdCheck {
+    source = sourceSets.main.allJava
+    minimumTokenCount = 75
+}
+
+jacocoTestReport {
+    executionData {
+        file('build/jacoco').listFiles().collect()
+    }
+    reports {
+        xml.enabled false
+        csv.enabled false
+        html.destination file("${buildDir}/reports/jacoco")
+    }
+}

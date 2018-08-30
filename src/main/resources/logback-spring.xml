@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <springProperty scope="context" name="serverName" source="HOSTNAME"/>
+
+    <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
+        <layout class="ch.qos.logback.classic.PatternLayout">
+            <Pattern>
+                %d{yyyy-MM-dd HH:mm:ss.SSS} [%X{requestId}] [%thread] [%X{serviceName}] %-5level %logger{0} - %msg%n
+            </Pattern>
+        </layout>
+    </appender>
+
+    <appender name="hec_access_appender_dev" class="com.splunk.logging.HttpEventCollectorLogbackAppender">
+        <url>https://splunk-hec-operations.ocset.net</url>
+        <host>${serverName:-${HOSTNAME}}</host>
+        <token>DBDE8BC4-8EFE-494C-8871-78D79FE35F31</token>
+        <sourcetype>nack_dev</sourcetype>
+
+        <layout class="ch.qos.logback.classic.PatternLayout">
+            <Pattern>
+                %d{yyyy-MM-dd HH:mm:ss.SSS} [%X{requestId}] [%thread] [%X{serviceName}] %-5level %logger{0} - %msg%n
+            </Pattern>
+        </layout>
+    </appender>
+
+    <appender name="hec_access_appender_ppe" class="com.splunk.logging.HttpEventCollectorLogbackAppender">
+        <url>https://splunk-hec-operations.ocset.net</url>
+        <host>${serverName:-${HOSTNAME}}</host>
+        <token>DBDE8BC4-8EFE-494C-8871-78D79FE35F31</token>
+        <sourcetype>nack_ppe</sourcetype>
+
+        <layout class="ch.qos.logback.classic.PatternLayout">
+            <Pattern>
+                %d{yyyy-MM-dd HH:mm:ss.SSS} [%X{requestId}] [%thread] [%X{serviceName}] %-5level %logger{0} - %msg%n
+            </Pattern>
+        </layout>
+    </appender>
+
+    <appender name="hec_access_appender_prod" class="com.splunk.logging.HttpEventCollectorLogbackAppender">
+        <url>https://splunk-hec-operations.ocset.net</url>
+        <host>${serverName:-${HOSTNAME}}</host>
+        <token>029E8A87-7E67-434D-A3E0-0980F2056608</token>
+        <sourcetype>nack_prod</sourcetype>
+
+        <layout class="ch.qos.logback.classic.PatternLayout">
+            <Pattern>
+                %d{yyyy-MM-dd HH:mm:ss.SSS} [%X{requestId}] [%thread] [%X{serviceName}] %-5level %logger{0} - %msg%n
+            </Pattern>
+        </layout>
+    </appender>
+
+
+    <springProfile name="dev">
+        <root level="INFO">
+            <appender-ref ref="console"/>
+            <appender-ref ref="hec_access_appender_dev"/>
+        </root>
+    </springProfile>
+    <springProfile name="ppe">
+        <root level="INFO">
+            <appender-ref ref="console"/>
+            <appender-ref ref="hec_access_appender_ppe"/>
+        </root>
+    </springProfile>
+    <springProfile name="prod">
+        <root level="INFO">
+            <appender-ref ref="console"/>
+            <appender-ref ref="hec_access_appender_prod"/>
+        </root>
+    </springProfile>
+    <springProfile name="test">
+        <root level="INFO">
+            <appender-ref ref="console"/>
+        </root>
+    </springProfile>
+    <springProfile name="default">
+        <root level="INFO">
+            <appender-ref ref="console"/>
+        </root>
+    </springProfile>
+</configuration>

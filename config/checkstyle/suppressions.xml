@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Puppy Crawl//DTD Suppressions 1.2//EN"
+        "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+
+<suppressions>
+    <suppress checks="MethodNameCheck" files="(Test|IntegrationTests).java"/>
+    <suppress checks="LineLengthCheck" files="(Test|IntegrationTests).java"/>
+    <suppress checks="ParameterNumber" files="(Test|IntegrationTests).java"/>
+</suppressions>
